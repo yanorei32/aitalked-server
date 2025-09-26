@@ -338,7 +338,9 @@ pub async fn event_loop(mut rx: mpsc::Receiver<RequestContext>) -> Result<()> {
         let code = unsafe { aitalked_api::lang_load(&lang) };
         if code != ResultCode::SUCCESS {
             ctx.channel
-                .send(Err(anyhow!("Failed to aitalked_api::lang_load {lang:?} {code:?}")))
+                .send(Err(anyhow!(
+                    "Failed to aitalked_api::lang_load {lang:?} {code:?}"
+                )))
                 .unwrap();
 
             continue;
@@ -380,7 +382,9 @@ pub async fn event_loop(mut rx: mpsc::Receiver<RequestContext>) -> Result<()> {
         };
         if code != ResultCode::SUCCESS {
             ctx.channel
-                .send(Err(anyhow!("Failed to aitalked_api::text_to_kana {code:?}")))
+                .send(Err(anyhow!(
+                    "Failed to aitalked_api::text_to_kana {code:?}"
+                )))
                 .unwrap();
 
             continue;
@@ -444,7 +448,9 @@ pub async fn event_loop(mut rx: mpsc::Receiver<RequestContext>) -> Result<()> {
         };
         if code != ResultCode::SUCCESS {
             ctx.channel
-                .send(Err(anyhow!("Failed to aitalked_api::text_to_speech {code:?}")))
+                .send(Err(anyhow!(
+                    "Failed to aitalked_api::text_to_speech {code:?}"
+                )))
                 .unwrap();
 
             continue;
@@ -458,7 +464,9 @@ pub async fn event_loop(mut rx: mpsc::Receiver<RequestContext>) -> Result<()> {
         let code = unsafe { aitalked_api::close_speech(job_id, 0) };
         if code != ResultCode::SUCCESS {
             ctx.channel
-                .send(Err(anyhow!("Failed to aitalked_api::close_speech {code:?}")))
+                .send(Err(anyhow!(
+                    "Failed to aitalked_api::close_speech {code:?}"
+                )))
                 .unwrap();
 
             continue;

@@ -1,6 +1,6 @@
-use tokio::sync::oneshot;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use tokio::sync::oneshot;
 
 fn default_pause_sentence() -> i32 {
     800

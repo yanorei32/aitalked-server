@@ -58,7 +58,6 @@ async fn main() -> Result<()> {
     .await
     .unwrap();
 
-
     tracing::info!("Ready");
 
     tokio::spawn(async move {

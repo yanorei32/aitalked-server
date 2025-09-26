@@ -19,7 +19,10 @@ struct AppState {
 async fn root_handler() -> impl IntoResponse {
     let mut html = "<h1>AITALKED SERVER</h1>\n".to_string();
 
-    html += &format!("<p>{} models avialble</p>\n", crate::worker::get_voice_icons().len());
+    html += &format!(
+        "<p>{} models avialble</p>\n",
+        crate::worker::get_voice_icons().len()
+    );
     html += "<ul>\n";
 
     for (name, icon) in crate::worker::get_voice_icons() {
