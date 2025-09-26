@@ -31,10 +31,17 @@ fn default_range() -> f32 {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct ApiRequest {
+    pub is_kansai: Option<bool>,
+
+    #[serde(flatten)]
+    pub body: Request,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct Request {
     pub voice_name: String,
     pub text: String,
-    pub is_kansai: Option<bool>,
 
     #[serde(default = "default_volume")]
     pub volume: f32,

@@ -9,11 +9,12 @@ use base64::prelude::*;
 use tokio::net::TcpListener;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::model::{Request, RequestContext, Voice};
+use crate::model::{ApiRequest, RequestContext, Voice};
 
 #[derive(Clone)]
 struct AppState {
     worker_socket: mpsc::Sender<RequestContext>,
+    worker_socket_kansai: mpsc::Sender<RequestContext>,
 }
 
 async fn root_handler() -> impl IntoResponse {
@@ -21,11 +22,11 @@ async fn root_handler() -> impl IntoResponse {
 
     html += &format!(
         "<p>{} models avialble</p>\n",
-        crate::worker::get_voice_icons().len()
+        crate::icon::get().len()
     );
     html += "<ul>\n";
 
-    for (name, icon) in crate::worker::get_voice_icons() {
+    for (name, icon) in crate::icon::get() {
         html += &format!(
             "<li><img src=\"data:image/png;base64,{}\" width=48> {name}</li>\n",
             BASE64_STANDARD.encode(icon)
@@ -39,7 +40,7 @@ async fn root_handler() -> impl IntoResponse {
 
 async fn voices_handler() -> Json<Vec<Voice>> {
     Json(
-        crate::worker::get_voice_icons()
+        crate::icon::get()
             .iter()
             .map(|(name, icon)| Voice {
                 name: name.to_string(),
@@ -51,13 +52,24 @@ async fn voices_handler() -> Json<Vec<Voice>> {
 
 async fn tts_handler(
     State(state): State<AppState>,
-    Json(body): Json<Request>,
+    Json(api_req): Json<ApiRequest>,
 ) -> impl IntoResponse {
     let (tx, rx) = oneshot::channel();
 
-    state
-        .worker_socket
-        .send(RequestContext { body, channel: tx })
+    let worker = if api_req
+        .is_kansai
+        .unwrap_or(api_req.body.voice_name.contains("west"))
+    {
+        state.worker_socket_kansai
+    } else {
+        state.worker_socket
+    };
+
+    worker
+        .send(RequestContext {
+            body: api_req.body,
+            channel: tx,
+        })
         .await
         .unwrap();
 
@@ -76,12 +88,16 @@ async fn tts_handler(
 pub async fn serve(
     listener: TcpListener,
     worker_socket: mpsc::Sender<RequestContext>,
+    worker_socket_kansai: mpsc::Sender<RequestContext>,
 ) -> Result<(), std::io::Error> {
     let app = Router::new()
         .route("/", get(root_handler))
         .route("/api/tts", post(tts_handler))
         .route("/api/voices", get(voices_handler))
-        .with_state(AppState { worker_socket });
+        .with_state(AppState {
+            worker_socket,
+            worker_socket_kansai,
+        });
 
     axum::serve(listener, app).await
 }

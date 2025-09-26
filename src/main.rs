@@ -3,13 +3,14 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 
-pub mod model;
+mod model;
+mod icon;
 mod web;
 mod worker;
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Clone)]
 struct Cli {
     #[arg(long, env, default_value = "C:\\Program Files (x86)\\AHS\\VOICEROID2")]
     installation_dir: PathBuf,
@@ -44,34 +45,53 @@ async fn main() -> Result<()> {
         .await
         .with_context(|| format!("Failed to bind address {listen}"))?;
 
+    let (tx_kansai, rx_kansai) = mpsc::channel(1);
     let (tx, rx) = mpsc::channel(1);
 
-    let (err_tx, err_rx) = oneshot::channel();
+    std::thread::spawn({
+        let cli = cli.clone();
+        move || {
+            icon::init(&cli.installation_dir).unwrap();
+        }
+    });
 
-    worker::initialization(
-        &cli.installation_dir,
-        cli.word_dic.as_deref(),
-        cli.phrase_dic.as_deref(),
-        cli.symbol_dic.as_deref(),
-        &cli.auth_seed,
-    )
-    .await
-    .unwrap();
+    std::thread::spawn({
+        let cli = cli.clone();
+        move || {
+            worker::event_loop(
+                &cli.installation_dir,
+                "aitalked_kansai.dll",
+                "Lang\\standard_kansai",
+                cli.word_dic.as_deref(),
+                cli.phrase_dic.as_deref(),
+                cli.symbol_dic.as_deref(),
+                &cli.auth_seed,
+                rx_kansai,
+            )
+            .unwrap();
+        }
+    });
+
+    std::thread::spawn({
+        let cli = cli.clone();
+        move || {
+            worker::event_loop(
+                &cli.installation_dir,
+                "aitalked.dll",
+                "Lang\\standard",
+                cli.word_dic.as_deref(),
+                cli.phrase_dic.as_deref(),
+                cli.symbol_dic.as_deref(),
+                &cli.auth_seed,
+                rx,
+            )
+            .unwrap();
+        }
+    });
 
     tracing::info!("Ready");
 
-    tokio::spawn(async move {
-        err_tx.send(web::serve(listener, tx).await).unwrap();
-    });
-
-    tokio::select! {
-        result = worker::event_loop(rx) => {
-            result?;
-        },
-        result = err_rx => {
-            result.unwrap()?;
-        },
-    }
+    web::serve(listener, tx, tx_kansai).await.unwrap();
 
     Ok(())
 }
