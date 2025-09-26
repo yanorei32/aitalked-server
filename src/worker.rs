@@ -7,6 +7,7 @@ use aitalked::{api as aitalked_api, binding::*, model::*};
 use anyhow::{Context, Result, anyhow};
 use encoding_rs::SHIFT_JIS;
 use once_cell::sync::OnceCell;
+use std::time::Instant;
 use tokio::sync::mpsc;
 
 use crate::model::RequestContext;
@@ -278,8 +279,12 @@ pub async fn event_loop(mut rx: mpsc::Receiver<RequestContext>) -> Result<()> {
         anyhow::bail!("Failed to aitalked_api::get_param (size query) {code:?}");
     }
 
+    let mut loaded_lang = None;
+
     loop {
         let ctx = rx.recv().await.unwrap();
+
+        let t_start_at = Instant::now();
 
         /*\
         |*| Parameter Initialization
@@ -316,15 +321,6 @@ pub async fn event_loop(mut rx: mpsc::Receiver<RequestContext>) -> Result<()> {
         /*\
         |*| Lang unload / load
         \*/
-        let code = unsafe { aitalked_api::lang_clear() };
-        if code != ResultCode::SUCCESS && code != ResultCode::NOT_LOADED {
-            ctx.channel
-                .send(Err(anyhow!("Failed to aitalked_api::lang_clear {code:?}")))
-                .unwrap();
-
-            continue;
-        }
-
         let lang = if ctx
             .body
             .is_kansai
@@ -335,16 +331,37 @@ pub async fn event_loop(mut rx: mpsc::Receiver<RequestContext>) -> Result<()> {
             CString::new("Lang\\standard").unwrap()
         };
 
-        let code = unsafe { aitalked_api::lang_load(&lang) };
-        if code != ResultCode::SUCCESS {
-            ctx.channel
-                .send(Err(anyhow!(
-                    "Failed to aitalked_api::lang_load {lang:?} {code:?}"
-                )))
-                .unwrap();
 
-            continue;
+        let reload_required = match loaded_lang {
+            Some(ref loaded_lang) => loaded_lang != &lang,
+            None => true,
+        };
+
+        if reload_required {
+            let code = unsafe { aitalked_api::lang_clear() };
+            if code != ResultCode::SUCCESS && code != ResultCode::NOT_LOADED {
+                ctx.channel
+                    .send(Err(anyhow!("Failed to aitalked_api::lang_clear {code:?}")))
+                    .unwrap();
+
+                continue;
+            }
+
+            let code = unsafe { aitalked_api::lang_load(&lang) };
+            if code != ResultCode::SUCCESS {
+                ctx.channel
+                    .send(Err(anyhow!(
+                        "Failed to aitalked_api::lang_load {lang:?} {code:?}"
+                    )))
+                    .unwrap();
+
+                continue;
+            }
+
+            loaded_lang = Some(lang.clone());
         }
+
+        let t_lang_ready = Instant::now();
 
         /*\
         |*| Start Text2Kana
@@ -412,6 +429,8 @@ pub async fn event_loop(mut rx: mpsc::Receiver<RequestContext>) -> Result<()> {
         // unload
         boxed_tts_param.tts_param_mut().proc_text_buf = None;
 
+        let t_kana_ready = Instant::now();
+
         /*\
         |*| Start Kana2Speech
         \*/
@@ -471,6 +490,15 @@ pub async fn event_loop(mut rx: mpsc::Receiver<RequestContext>) -> Result<()> {
 
             continue;
         }
+
+        let t_speech_ready = Instant::now();
+
+        tracing::info!(
+            "Lang: {:?}, Kana: {:?}, Speech: {:?}",
+            t_lang_ready - t_start_at,
+            t_kana_ready - t_lang_ready,
+            t_speech_ready - t_kana_ready,
+        );
 
         ctx.channel.send(Ok(buffer)).unwrap();
     }

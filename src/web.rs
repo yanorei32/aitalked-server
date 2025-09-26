@@ -63,10 +63,13 @@ async fn tts_handler(
 
     match rx.await.unwrap() {
         Ok(voice) => ([(header::CONTENT_TYPE, "application/octet-stream")], voice),
-        Err(e) => (
-            [(header::CONTENT_TYPE, "text/plain")],
-            e.to_string().into_bytes(),
-        ),
+        Err(e) => {
+            tracing::warn!("{e}");
+            (
+                [(header::CONTENT_TYPE, "text/plain")],
+                e.to_string().into_bytes(),
+            )
+        }
     }
 }
 
