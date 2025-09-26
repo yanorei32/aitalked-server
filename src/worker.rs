@@ -14,7 +14,7 @@ use crate::model::RequestContext;
 static VOICE_ICONS: OnceCell<HashMap<String, Vec<u8>>> = OnceCell::new();
 
 pub fn get_voice_icons() -> &'static HashMap<String, Vec<u8>> {
-    &VOICE_ICONS.get().unwrap()
+    VOICE_ICONS.get().unwrap()
 }
 
 fn path_to_sjis_cstring(path: &Path) -> CString {
@@ -22,7 +22,7 @@ fn path_to_sjis_cstring(path: &Path) -> CString {
 }
 
 fn find_voice_dbs(dir_voice_dbs: &Path) -> Result<Vec<String>> {
-    Ok(std::fs::read_dir(&dir_voice_dbs)
+    Ok(std::fs::read_dir(dir_voice_dbs)
         .context("Failed to read VoiceDB Directory")?
         .map(|entry| entry.unwrap())
         .map(|entry| entry.path())
@@ -443,7 +443,7 @@ pub async fn event_loop(mut rx: mpsc::Receiver<RequestContext>) -> Result<()> {
             aitalked_api::text_to_speech(
                 &mut job_id,
                 &mut context as *mut TextToSpeechContext as *mut std::ffi::c_void,
-                &kana,
+                kana,
             )
         };
         if code != ResultCode::SUCCESS {
