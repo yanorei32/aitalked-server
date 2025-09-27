@@ -277,7 +277,6 @@ pub fn event_loop(
             continue;
         };
 
-        speaker.volume = ctx.body.volume;
         speaker.speed = ctx.body.speed;
         speaker.pitch = ctx.body.pitch;
         speaker.range = ctx.body.range;
@@ -285,6 +284,7 @@ pub fn event_loop(
         speaker.pause_long = ctx.body.pause_long;
         speaker.pause_sentence = ctx.body.pause_sentence;
         boxed_tts_param.tts_param_mut().voice_name = speaker.voice_name;
+        boxed_tts_param.tts_param_mut().volume = ctx.body.volume;
         boxed_tts_param.tts_param_mut().proc_text_buf = None;
         boxed_tts_param.tts_param_mut().proc_raw_buf = None;
         boxed_tts_param.tts_param_mut().proc_event_tts = None;
