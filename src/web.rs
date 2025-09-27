@@ -21,7 +21,7 @@ async fn root_handler() -> impl IntoResponse {
     let mut html = "<h1>AITALKED SERVER</h1>\n".to_string();
 
     html += &format!(
-        "<p>{} models avialble</p>\n",
+        "<p>{} models available</p>\n",
         crate::icon::get().len()
     );
     html += "<ul>\n";
