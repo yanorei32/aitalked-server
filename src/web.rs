@@ -1,7 +1,7 @@
 use axum::{
     Router,
     extract::{Json, State},
-    http::header,
+    http::{StatusCode, header},
     response::IntoResponse,
     routing::{get, post},
 };
@@ -18,24 +18,7 @@ struct AppState {
 }
 
 async fn root_handler() -> impl IntoResponse {
-    let mut html = "<h1>AITALKED SERVER</h1>\n".to_string();
-
-    html += &format!(
-        "<p>{} models available</p>\n",
-        crate::icon::get().len()
-    );
-    html += "<ul>\n";
-
-    for (name, icon) in crate::icon::get() {
-        html += &format!(
-            "<li><img src=\"data:image/png;base64,{}\" width=48> {name}</li>\n",
-            BASE64_STANDARD.encode(icon)
-        );
-    }
-
-    html += "</ul>\n";
-
-    ([(header::CONTENT_TYPE, "text/html")], html)
+    ([(header::CONTENT_TYPE, "text/html")], include_str!("../assets/index.html"))
 }
 
 async fn voices_handler() -> Json<Vec<Voice>> {
@@ -74,10 +57,15 @@ async fn tts_handler(
         .unwrap();
 
     match rx.await.unwrap() {
-        Ok(voice) => ([(header::CONTENT_TYPE, "application/octet-stream")], voice),
+        Ok(voice) => (
+            StatusCode::OK,
+            [(header::CONTENT_TYPE, "application/octet-stream")],
+            voice,
+        ),
         Err(e) => {
             tracing::warn!("{e}");
             (
+                StatusCode::BAD_REQUEST,
                 [(header::CONTENT_TYPE, "text/plain")],
                 e.to_string().into_bytes(),
             )
