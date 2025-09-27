@@ -23,8 +23,6 @@ fn find_voice_dbs(dir_voice_dbs: &Path) -> Result<Vec<String>> {
 }
 
 fn read(installation_dir: &Path, voice_name: &str) -> Result<Vec<u8>> {
-    tracing::info!("Initializing {voice_name}...");
-
     let path = installation_dir
         .join("Voice")
         .join(voice_name)
@@ -61,7 +59,7 @@ pub fn init(installation_dir: &Path) -> Result<()> {
     let icons = icons?;
 
     ICONS.get_or_init(|| icons);
-    tracing::info!("Ready Icon");
+    tracing::info!("Icon Ready");
 
     Ok(())
 }

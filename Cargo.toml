@@ -8,7 +8,7 @@ axum = { version = "0.8.4", features = ["json"] }
 clap = { version = "4.5.48", features = ["derive", "env"] }
 serde = { version = "1.0.226", features = ["derive"] }
 serde_json = "1.0.145"
-tokio = { version = "1.47.1", features = ["macros", "net", "rt-multi-thread", "time"] }
+tokio = { version = "1.47.1", features = ["macros", "net", "rt", "time"] }
 aitalked = { git = "https://github.com/yanorei32/aitalked", commit = "5fb8afb08512da921a4a6ec8f5d0faac64dd839f" }
 encoding_rs = "0.8.35"
 anyhow = "1.0.100"

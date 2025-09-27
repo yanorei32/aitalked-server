@@ -3,10 +3,10 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
-mod model;
 mod icon;
+mod model;
 mod web;
 mod worker;
 
@@ -32,9 +32,9 @@ struct Cli {
     symbol_dic: Option<PathBuf>,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt().with_thread_names(true).init();
 
     let cli = Cli::parse();
     std::env::set_current_dir(&cli.installation_dir).unwrap();
@@ -46,19 +46,16 @@ async fn main() -> Result<()> {
         .with_context(|| format!("Failed to bind address {listen}"))?;
 
     let (tx_kansai, rx_kansai) = mpsc::channel(1);
+    let (tx_kansai_result, rx_kansai_result) = oneshot::channel();
     let (tx, rx) = mpsc::channel(1);
+    let (tx_result, rx_result) = oneshot::channel();
+    let (tx_icon_result, rx_icon_result) = oneshot::channel();
 
-    std::thread::spawn({
-        let cli = cli.clone();
-        move || {
-            icon::init(&cli.installation_dir).unwrap();
-        }
-    });
-
-    std::thread::spawn({
-        let cli = cli.clone();
-        move || {
-            worker::event_loop(
+    std::thread::Builder::new()
+        .name("WkrStdKnsi".to_string())
+        .spawn({
+            let cli = cli.clone();
+            move || match worker::initialization(
                 &cli.installation_dir,
                 "aitalked_kansai.dll",
                 "Lang\\standard_kansai",
@@ -66,16 +63,23 @@ async fn main() -> Result<()> {
                 cli.phrase_dic.as_deref(),
                 cli.symbol_dic.as_deref(),
                 &cli.auth_seed,
-                rx_kansai,
-            )
-            .unwrap();
-        }
-    });
+            ) {
+                Ok((aitalked, param)) => {
+                    tx_kansai_result.send(Ok(())).unwrap();
+                    worker::event_loop(aitalked, param, rx_kansai);
+                }
+                Err(e) => {
+                    tx_kansai_result.send(Err(e)).unwrap();
+                }
+            }
+        })
+        .unwrap();
 
-    std::thread::spawn({
-        let cli = cli.clone();
-        move || {
-            worker::event_loop(
+    std::thread::Builder::new()
+        .name("WkrStd".to_string())
+        .spawn({
+            let cli = cli.clone();
+            move || match worker::initialization(
                 &cli.installation_dir,
                 "aitalked.dll",
                 "Lang\\standard",
@@ -83,14 +87,43 @@ async fn main() -> Result<()> {
                 cli.phrase_dic.as_deref(),
                 cli.symbol_dic.as_deref(),
                 &cli.auth_seed,
-                rx,
-            )
-            .unwrap();
-        }
-    });
+            ) {
+                Ok((aitalked, param)) => {
+                    tx_result.send(Ok(())).unwrap();
+                    worker::event_loop(aitalked, param, rx);
+                }
+                Err(e) => {
+                    tx_result.send(Err(e)).unwrap();
+                }
+            }
+        })
+        .unwrap();
 
-    tracing::info!("Ready");
+    std::thread::Builder::new()
+        .name("InitIcon".to_string())
+        .spawn({
+            let cli = cli.clone();
+            move || {
+                tx_icon_result
+                    .send(icon::init(&cli.installation_dir))
+                    .unwrap();
+            }
+        })
+        .unwrap();
 
+    rx_icon_result.await.unwrap().expect("Failed to init icon");
+
+    rx_result
+        .await
+        .unwrap()
+        .expect("Failed to init worker standard");
+
+    rx_kansai_result
+        .await
+        .unwrap()
+        .expect("Failed to init worker standard_kansai");
+
+    tracing::info!("Ready to use");
     web::serve(listener, tx, tx_kansai).await.unwrap();
 
     Ok(())

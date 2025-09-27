@@ -153,7 +153,7 @@ fn voicename_to_buffer(s: &str) -> [c_char; MAX_VOICE_NAME] {
     buffer
 }
 
-pub fn event_loop(
+pub fn initialization(
     installation_dir: &Path,
     dll_name: &str,
     lang: &str,
@@ -161,8 +161,7 @@ pub fn event_loop(
     phrase_dic: Option<&Path>,
     symbol_dic: Option<&Path>,
     auth_seed: &str,
-    mut rx: mpsc::Receiver<RequestContext>,
-) -> Result<()> {
+) -> Result<(Aitalked, BoxedTtsParam)> {
     let aitalked = unsafe { aitalked::load_dll(&installation_dir.join(dll_name)) }
         .context("Failed to initialization aitalked.dll")?;
 
@@ -183,14 +182,14 @@ pub fn event_loop(
     let code = unsafe { aitalked.init(&config) };
 
     if code != ResultCode::SUCCESS {
-        anyhow::bail!("Failed to aitalked.init {code:?} ({lang})");
+        anyhow::bail!("Failed to aitalked.init {code:?}");
     }
 
     if let Some(word_dic) = word_dic {
         let code = unsafe { aitalked.reload_word_dic(Some(&path_to_sjis_cstring(word_dic))) };
 
         if code != ResultCode::SUCCESS {
-            anyhow::bail!("Failed to aitalked.reload_word_dic {code:?} ({lang})");
+            anyhow::bail!("Failed to aitalked.reload_word_dic {code:?}");
         }
     }
 
@@ -198,7 +197,7 @@ pub fn event_loop(
         let code = unsafe { aitalked.reload_phrase_dic(Some(&path_to_sjis_cstring(phrase_dic))) };
 
         if code != ResultCode::SUCCESS {
-            anyhow::bail!("Failed to aitalked.reload_phrase_dic {code:?} ({lang})");
+            anyhow::bail!("Failed to aitalked.reload_phrase_dic {code:?}");
         }
     }
 
@@ -206,20 +205,20 @@ pub fn event_loop(
         let code = unsafe { aitalked.reload_symbol_dic(Some(&path_to_sjis_cstring(symbol_dic))) };
 
         if code != ResultCode::SUCCESS {
-            anyhow::bail!("Failed to aitalked.reload_symbol_dic {code:?} ({lang})");
+            anyhow::bail!("Failed to aitalked.reload_symbol_dic {code:?}");
         }
     }
 
     let voice_names = find_voice_dbs(&dir_voice_dbs).unwrap();
 
     for name in voice_names {
-        tracing::info!("Initializing {name}... ({lang})");
+        tracing::info!("Initializing {name}...");
 
         let code =
             unsafe { aitalked.voice_load(&CString::new(SHIFT_JIS.encode(&name).0).unwrap()) };
 
         if code != ResultCode::SUCCESS {
-            anyhow::bail!("Failed to aitalked.voice_load {code:?} ({lang})");
+            anyhow::bail!("Failed to aitalked.voice_load {code:?}");
         }
     }
 
@@ -230,7 +229,7 @@ pub fn event_loop(
     let code = unsafe { aitalked.get_param(std::ptr::null_mut(), &mut actual_tts_param_size) };
 
     if code != ResultCode::INSUFFICIENT {
-        anyhow::bail!("Failed to aitalked.get_param (size query) {code:?} ({lang})");
+        anyhow::bail!("Failed to aitalked.get_param (size query) {code:?}");
     }
 
     let estimate_speaker_param_count =
@@ -242,16 +241,22 @@ pub fn event_loop(
         unsafe { aitalked.get_param(boxed_tts_param.tts_param_mut(), &mut actual_tts_param_size) };
 
     if code != ResultCode::SUCCESS {
-        anyhow::bail!("Failed to aitalked.get_param (size query) {code:?} ({lang})");
+        anyhow::bail!("Failed to aitalked.get_param (size query) {code:?}");
     }
 
     let code = unsafe { aitalked.lang_load(&CString::new(lang).unwrap()) };
     if code != ResultCode::SUCCESS {
-        anyhow::bail!("Failed to aitalked.lang_load {lang} {code:?} ({lang})")
+        anyhow::bail!("Failed to aitalked.lang_load {lang} {code:?}")
     }
 
-    tracing::info!("Ready {lang}");
+    Ok((aitalked, boxed_tts_param))
+}
 
+pub fn event_loop(
+    aitalked: Aitalked,
+    mut boxed_tts_param: BoxedTtsParam,
+    mut rx: mpsc::Receiver<RequestContext>,
+) {
     loop {
         let ctx = rx.blocking_recv().unwrap();
 
@@ -260,16 +265,17 @@ pub fn event_loop(
         /*\
         |*| Parameter Initialization
         \*/
-        let voice_name = voicename_to_buffer(&ctx.body.voice_name);
+        let voice_name = &ctx.body.voice_name;
+        let voice_name_buff = voicename_to_buffer(voice_name);
 
         let Some(speaker) = boxed_tts_param
             .speakers_mut()
             .iter_mut()
-            .find(|s| s.voice_name == voice_name)
+            .find(|s| s.voice_name == voice_name_buff)
         else {
             ctx.channel
                 .send(Err(anyhow!(
-                    "Failed to find speaker from tts_param {} ({lang})",
+                    "Failed to find speaker from tts_param {}",
                     ctx.body.voice_name
                 )))
                 .unwrap();
@@ -298,7 +304,7 @@ pub fn event_loop(
         if code != ResultCode::SUCCESS {
             ctx.channel
                 .send(Err(anyhow!(
-                    "Failed to aitalked.set_param (text_to_kana) {code:?} ({lang})"
+                    "Failed to aitalked.set_param (text_to_kana) {code:?}"
                 )))
                 .unwrap();
 
@@ -326,7 +332,7 @@ pub fn event_loop(
         };
         if code != ResultCode::SUCCESS {
             ctx.channel
-                .send(Err(anyhow!("Failed to aitalked.text_to_kana {code:?} ({lang})")))
+                .send(Err(anyhow!("Failed to aitalked.text_to_kana {code:?}")))
                 .unwrap();
 
             continue;
@@ -339,7 +345,7 @@ pub fn event_loop(
         let code = unsafe { aitalked.close_kana(job_id, 0) };
         if code != ResultCode::SUCCESS {
             ctx.channel
-                .send(Err(anyhow!("Failed to aitalked.close_kana {code:?} ({lang})")))
+                .send(Err(anyhow!("Failed to aitalked.close_kana {code:?}")))
                 .unwrap();
 
             continue;
@@ -364,7 +370,7 @@ pub fn event_loop(
         if code != ResultCode::SUCCESS {
             ctx.channel
                 .send(Err(anyhow!(
-                    "Failed to aitalked.set_param (kana_to_speech / set) {code:?} ({lang})"
+                    "Failed to aitalked.set_param (kana_to_speech / set) {code:?}"
                 )))
                 .unwrap();
 
@@ -392,7 +398,7 @@ pub fn event_loop(
         };
         if code != ResultCode::SUCCESS {
             ctx.channel
-                .send(Err(anyhow!("Failed to aitalked.text_to_speech {code:?} ({lang})")))
+                .send(Err(anyhow!("Failed to aitalked.text_to_speech {code:?}")))
                 .unwrap();
 
             continue;
@@ -405,7 +411,7 @@ pub fn event_loop(
         let code = unsafe { aitalked.close_speech(job_id, 0) };
         if code != ResultCode::SUCCESS {
             ctx.channel
-                .send(Err(anyhow!("Failed to aitalked.close_speech {code:?} ({lang})")))
+                .send(Err(anyhow!("Failed to aitalked.close_speech {code:?}")))
                 .unwrap();
 
             continue;
@@ -414,8 +420,8 @@ pub fn event_loop(
         let t_speech_ready = Instant::now();
 
         tracing::info!(
-            "Lang: {}, Kana: {:?}, Speech: {:?}",
-            lang,
+            "Voice: {}, Kana: {:?}, Speech: {:?}",
+            voice_name,
             t_kana_ready - t_start_at,
             t_speech_ready - t_kana_ready,
         );
