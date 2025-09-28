@@ -59,7 +59,7 @@ async fn tts_handler(
     match rx.await.unwrap() {
         Ok(voice) => (
             StatusCode::OK,
-            [(header::CONTENT_TYPE, "application/octet-stream")],
+            [(header::CONTENT_TYPE, "audio/wav")],
             voice,
         ),
         Err(e) => {

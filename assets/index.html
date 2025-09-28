@@ -16,7 +16,7 @@
 			margin: auto;
 		}
 		#text {
-			width: 100%;
+			width: calc(100% - 10px);
 			height: 10em;
 		}
 	</style>
@@ -70,15 +70,17 @@
 				<td><input type=range id=pause_sentence value=800 min=200 max=10000></td>
 				<td><span id=pause_sentence_s>800</span></td>
 			</tr>
+			<tr>
+				<td></td>
+				<td><button id=reset>Reset Parameter</button></td>
+			</tr>
 		</table>
-		<p>Must be: Middle &lt;= Long &lt;= Sentence</p>
 
 		<textarea id=text placeholder="Text to Synthesis"></textarea>
 		<p>
-			<button id=reset>Reset</button>
 			<button id=synthesis_button>Synthesis</button>
 		</p>
-		<audio id=audio></audio>
+		<audio id=audio controls></audio>
 		<script>
 			let characters;
 			const character_selector = document.getElementById("character_selector");
@@ -133,9 +135,21 @@
 			speed.addEventListener("change", update_values);
 			pitch.addEventListener("change", update_values);
 			range.addEventListener("change", update_values);
-			pause_middle.addEventListener("change", update_values);
-			pause_long.addEventListener("change", update_values);
-			pause_sentence.addEventListener("change", update_values);
+			pause_middle.addEventListener("change", () => {
+				pause_long.value = Math.max(pause_long.value, pause_middle.value);
+				pause_sentence.value = Math.max(pause_sentence.value, pause_middle.value);
+				update_values();
+			});
+			pause_long.addEventListener("change", () => {
+				pause_middle.value = Math.min(pause_middle.value, pause_long.value);
+				pause_sentence.value = Math.max(pause_sentence.value, pause_long.value);
+				update_values();
+			});
+			pause_sentence.addEventListener("change", () => {
+				pause_middle.value = Math.min(pause_middle.value, pause_sentence.value);
+				pause_long.value = Math.min(pause_long.value, pause_sentence.value);
+				update_values();
+			});
 
 			const update_character_icon = () => {
 				const icon = characters.find(c => c.name == character_selector.value).icon;
@@ -182,7 +196,6 @@
 					pause_sentence: pause_sentence.value - 0,
 				});
 
-				const audio_ctx = new AudioContext();
 				const response = await fetch("/api/tts", {
 					method: "POST",
 					headers: {
@@ -197,22 +210,9 @@
 				}
 
 				const raw_wav = new Uint8Array(await response.arrayBuffer());
-
-				const f32_buffer = new Float32Array(raw_wav.length / 2);
-
-				for (let i = 0; i < f32_buffer.length; ++i) {
-					let sample = (raw_wav[i * 2 + 1]  << 8) + raw_wav[i * 2];
-					sample = sample >= 32768 ? sample - 65536 : sample;
-					f32_buffer[i] = sample / 32768.0;
-				}
-
-				const audio_buffer = audio_ctx.createBuffer(1, f32_buffer.length, 44100);
-				audio_buffer.copyToChannel(f32_buffer, 0)
-
-				const source = audio_ctx.createBufferSource();
-				source.buffer = audio_buffer;
-				source.connect(audio_ctx.destination);
-				source.start();
+				const audio = document.getElementById("audio");
+				audio.src = `data:audio/wav;base64,${raw_wav.toBase64()}`;
+				audio.play();
 			});
 		</script>
 	</div>

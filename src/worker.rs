@@ -1,5 +1,6 @@
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::path::Path;
+use std::io::{Write, Cursor};
 
 use aitalked::{api::Aitalked, binding::*, model::*};
 use anyhow::{Context, Result, anyhow};
@@ -380,7 +381,8 @@ pub fn event_loop(
         let mut job_id = 0;
         let (tx, mut rx) = mpsc::channel(1);
 
-        let mut buffer = vec![];
+        const WAV_HEADER_SIZE: usize = 44;
+        let mut buffer = vec![0; WAV_HEADER_SIZE];
 
         let mut context = TextToSpeechContext {
             aitalked,
@@ -425,6 +427,19 @@ pub fn event_loop(
             t_kana_ready - t_start_at,
             t_speech_ready - t_kana_ready,
         );
+
+        let filesize = buffer.len();
+        let bodysize = buffer.len() - WAV_HEADER_SIZE;
+        let mut file = Cursor::new(buffer);
+        file.write_all(b"RIFF").unwrap();
+        file.write_all(&(filesize as u32).to_le_bytes()).unwrap();
+        file.write_all(b"WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00").unwrap();
+        file.write_all(&44100u32.to_le_bytes()).unwrap();
+        file.write_all(&(44100u32 * 2).to_le_bytes()).unwrap();
+        file.write_all(b"\x02\x00\x10\x00data").unwrap();
+        file.write_all(&(bodysize as u32).to_le_bytes()).unwrap();
+
+        let buffer = file.into_inner();
 
         ctx.channel.send(Ok(buffer)).unwrap();
     }
