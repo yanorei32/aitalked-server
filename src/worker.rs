@@ -255,7 +255,7 @@ pub fn initialization(
     Ok((aitalked, boxed_tts_param))
 }
 
-fn to_sjis_lossy(input: &str) -> CString {
+fn to_nonempty_sjis_lossy(input: &str) -> Option<CString> {
     let sjisable_s = input
         .chars()
         .filter(|c| {
@@ -264,8 +264,12 @@ fn to_sjis_lossy(input: &str) -> CString {
         })
         .collect::<String>();
 
-    let sjis = SHIFT_JIS.encode(&sjisable_s).0;
-    CString::new(sjis).unwrap()
+    if sjisable_s.trim().len() > 0 {
+        let sjis = SHIFT_JIS.encode(&sjisable_s).0;
+        Some(CString::new(sjis).unwrap())
+    } else {
+        None
+    }
 }
 
 pub fn event_loop(
@@ -312,7 +316,7 @@ pub fn event_loop(
         boxed_tts_param.tts_param_mut().proc_event_tts = None;
 
         // Avoiding aitalked.text_to_kana INVALID_ARGUMENT
-        if ctx.body.text.trim().len() > 0 {
+        if let Some(sjis_text) = to_nonempty_sjis_lossy(&ctx.body.text) {
             /*\
             |*| Start Text2Kana
             \*/
@@ -345,7 +349,7 @@ pub fn event_loop(
                 aitalked.text_to_kana(
                     &mut job_id,
                     &mut context as *mut ProcTextBufContext as *mut std::ffi::c_void,
-                    &to_sjis_lossy(&ctx.body.text),
+                    &sjis_text,
                 )
             };
             if code != ResultCode::SUCCESS {
