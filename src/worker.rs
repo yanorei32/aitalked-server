@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString, c_char, c_void};
+use std::io::{Cursor, Write};
 use std::path::Path;
-use std::io::{Write, Cursor};
 
 use aitalked::{api::Aitalked, binding::*, model::*};
 use anyhow::{Context, Result, anyhow};
@@ -253,6 +253,19 @@ pub fn initialization(
     Ok((aitalked, boxed_tts_param))
 }
 
+fn to_sjis_lossy(input: &str) -> CString {
+    let sjisable_s = input
+        .chars()
+        .filter(|c| {
+            let (_, _, error) = SHIFT_JIS.encode(&c.to_string());
+            !error
+        })
+        .collect::<String>();
+
+    let sjis = SHIFT_JIS.encode(&sjisable_s).0;
+    CString::new(sjis).unwrap()
+}
+
 pub fn event_loop(
     aitalked: Aitalked,
     mut boxed_tts_param: BoxedTtsParam,
@@ -328,7 +341,7 @@ pub fn event_loop(
             aitalked.text_to_kana(
                 &mut job_id,
                 &mut context as *mut ProcTextBufContext as *mut std::ffi::c_void,
-                &CString::new(SHIFT_JIS.encode(&ctx.body.text).0).unwrap(),
+                &to_sjis_lossy(&ctx.body.text),
             )
         };
         if code != ResultCode::SUCCESS {
@@ -433,7 +446,8 @@ pub fn event_loop(
         let mut file = Cursor::new(buffer);
         file.write_all(b"RIFF").unwrap();
         file.write_all(&(filesize as u32).to_le_bytes()).unwrap();
-        file.write_all(b"WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00").unwrap();
+        file.write_all(b"WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00")
+            .unwrap();
         file.write_all(&44100u32.to_le_bytes()).unwrap();
         file.write_all(&(44100u32 * 2).to_le_bytes()).unwrap();
         file.write_all(b"\x02\x00\x10\x00data").unwrap();
