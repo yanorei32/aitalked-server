@@ -1,3 +1,3 @@
 # aitalked server
 
-<img width="837" height="558" alt="image" src="https://github.com/user-attachments/assets/cbf449a8-1226-4197-b136-0f6936c436e1" />
+<img width="1114" height="823" alt="image" src="https://github.com/user-attachments/assets/4b42e24e-3873-4951-aa4b-93d2a8f2898f" />
