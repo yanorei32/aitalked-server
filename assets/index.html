@@ -19,14 +19,19 @@
 			width: calc(100% - 10px);
 			height: 10em;
 		}
+		#character_color {
+			width: 5px;
+			height: 48px;
+			display: inline-block;
+		}
 	</style>
 </head>
 <body>
 	<div class=container>
 		<h1>Aitalked Server</h1>
 
-		<p>
-			<img id=character_icon width=48 height=48>
+		<p id=character_selection>
+			<div id=character_color></div><img id=character_icon width=48 height=48>
 			<select id=character_selector></select>
 			(<span id=character_count>0</span> characters available.)
 		</p>
@@ -151,19 +156,19 @@
 				update_values();
 			});
 
-			const update_character_icon = () => {
-				const icon = characters.find(c => c.name == character_selector.value).icon;
+			const update_character = () => {
+				const character = characters.find(c => c.id == character_selector.value);
+
+				const icon = character.icon;
 				document.getElementById("character_icon").src = "data:image/png;base64," + icon;
+
+				is_kansai.checked = character.dialect == "Kansai";
+
+				document.getElementById("character_color").style.backgroundColor =
+					character.background_color;
 			};
 
-			const update_is_kansai = () => {
-				is_kansai.checked = character_selector.value.includes("west");
-			};
-
-			character_selector.addEventListener("change", () => {
-				update_character_icon();
-				update_is_kansai();
-			});
+			character_selector.addEventListener("change", update_character);
 
 			fetch("/api/voices")
 				.then(resp => resp.json())
@@ -173,18 +178,17 @@
 					for (character of characters) {
 						const option = document.createElement("option");
 						option.textContent = character.name;
-						option.value = character.name;
+						option.value = character.id;
 						character_selector.appendChild(option);
 					}
 
-					update_character_icon();
-					update_is_kansai();
+					update_character();
 					document.getElementById("character_count").textContent = characters.length;
 				});
 
 			document.getElementById("synthesis_button").addEventListener("click", async () => {
 				const request_body = JSON.stringify({
-					voice_name: character_selector.value,
+					voice_id: character_selector.value,
 					is_kansai: is_kansai.checked,
 					text: text.value,
 					volume: volume.value - 0,

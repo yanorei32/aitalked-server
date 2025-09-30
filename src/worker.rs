@@ -210,9 +210,9 @@ pub fn initialization(
         }
     }
 
-    let voice_names = find_voice_dbs(&dir_voice_dbs).unwrap();
+    let voice_name = find_voice_dbs(&dir_voice_dbs).unwrap();
 
-    for name in voice_names {
+    for name in voice_name {
         tracing::info!("Initializing {name}...");
 
         let code =
@@ -266,7 +266,7 @@ pub fn event_loop(
         /*\
         |*| Parameter Initialization
         \*/
-        let voice_name = &ctx.body.voice_name;
+        let voice_name = &ctx.body.voice_id;
         let voice_name_buff = voicename_to_buffer(voice_name);
 
         let Some(speaker) = boxed_tts_param
@@ -277,7 +277,7 @@ pub fn event_loop(
             ctx.channel
                 .send(Err(anyhow!(
                     "Failed to find speaker from tts_param {}",
-                    ctx.body.voice_name
+                    ctx.body.voice_id
                 )))
                 .unwrap();
 

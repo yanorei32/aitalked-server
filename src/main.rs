@@ -5,7 +5,7 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use tokio::sync::{mpsc, oneshot};
 
-mod icon;
+mod voices;
 mod model;
 mod web;
 mod worker;
@@ -100,12 +100,12 @@ async fn main() -> Result<()> {
         .unwrap();
 
     std::thread::Builder::new()
-        .name("InitIcon".to_string())
+        .name("InitVoices".to_string())
         .spawn({
             let cli = cli.clone();
             move || {
                 tx_icon_result
-                    .send(icon::init(&cli.installation_dir))
+                    .send(voices::init(&cli.installation_dir))
                     .unwrap();
             }
         })

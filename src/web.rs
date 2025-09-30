@@ -18,16 +18,23 @@ struct AppState {
 }
 
 async fn root_handler() -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "text/html")], include_str!("../assets/index.html"))
+    (
+        [(header::CONTENT_TYPE, "text/html")],
+        include_str!("../assets/index.html"),
+    )
 }
 
 async fn voices_handler() -> Json<Vec<Voice>> {
     Json(
-        crate::icon::get()
+        crate::voices::get()
             .iter()
-            .map(|(name, icon)| Voice {
-                name: name.to_string(),
+            .map(|(id, (icon, info))| Voice {
+                id: id.to_string(),
+                name: info.name.to_string(),
                 icon: BASE64_STANDARD.encode(icon),
+                dialect: info.dialect.to_string(),
+                gender: info.gender.to_string(),
+                background_color: info.background_color.to_hex_string(),
             })
             .collect::<Vec<_>>(),
     )
@@ -37,16 +44,27 @@ async fn tts_handler(
     State(state): State<AppState>,
     Json(api_req): Json<ApiRequest>,
 ) -> impl IntoResponse {
-    let (tx, rx) = oneshot::channel();
+    let voice_id = &api_req.body.voice_id;
 
-    let worker = if api_req
-        .is_kansai
-        .unwrap_or(api_req.body.voice_name.contains("west"))
-    {
+    let Some(info) = crate::voices::get().get(voice_id) else {
+        let e = format!("{voice_id} is not loaded");
+        tracing::warn!("{e}");
+        return (
+            StatusCode::BAD_REQUEST,
+            [(header::CONTENT_TYPE, "text/plain")],
+            e.to_string().into_bytes(),
+        );
+    };
+
+    let is_kansai = info.1.dialect == "Kansai";
+
+    let worker = if api_req.is_kansai.unwrap_or(is_kansai) {
         state.worker_socket_kansai
     } else {
         state.worker_socket
     };
+
+    let (tx, rx) = oneshot::channel();
 
     worker
         .send(RequestContext {
@@ -57,11 +75,7 @@ async fn tts_handler(
         .unwrap();
 
     match rx.await.unwrap() {
-        Ok(voice) => (
-            StatusCode::OK,
-            [(header::CONTENT_TYPE, "audio/wav")],
-            voice,
-        ),
+        Ok(voice) => (StatusCode::OK, [(header::CONTENT_TYPE, "audio/wav")], voice),
         Err(e) => {
             tracing::warn!("{e}");
             (

@@ -40,7 +40,7 @@ pub struct ApiRequest {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Request {
-    pub voice_name: String,
+    pub voice_id: String,
     pub text: String,
 
     #[serde(default = "default_volume")]
@@ -73,6 +73,10 @@ pub struct RequestContext {
 
 #[derive(Debug, Serialize)]
 pub struct Voice {
+    pub id: String,
     pub name: String,
     pub icon: String,
+    pub dialect: String,
+    pub gender: String,
+    pub background_color: String,
 }
