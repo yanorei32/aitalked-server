@@ -10,6 +10,8 @@ use tokio::sync::mpsc;
 
 use crate::model::RequestContext;
 
+const WAV_HEADER_SIZE: usize = 44;
+
 fn path_to_sjis_cstring(path: &Path) -> CString {
     CString::new(SHIFT_JIS.encode(path.to_str().unwrap()).0).unwrap()
 }
@@ -309,152 +311,176 @@ pub fn event_loop(
         boxed_tts_param.tts_param_mut().proc_raw_buf = None;
         boxed_tts_param.tts_param_mut().proc_event_tts = None;
 
-        /*\
-        |*| Start Text2Kana
-        \*/
-        boxed_tts_param.tts_param_mut().proc_text_buf = Some(text_buffer_callback);
+        // Avoiding aitalked.text_to_kana INVALID_ARGUMENT
+        if ctx.body.text.trim().len() > 0 {
+            /*\
+            |*| Start Text2Kana
+            \*/
+            boxed_tts_param.tts_param_mut().proc_text_buf = Some(text_buffer_callback);
 
-        let code = unsafe { aitalked.set_param(boxed_tts_param.tts_param()) };
-        if code != ResultCode::SUCCESS {
-            ctx.channel
-                .send(Err(anyhow!(
-                    "Failed to aitalked.set_param (text_to_kana) {code:?}"
-                )))
-                .unwrap();
+            let code = unsafe { aitalked.set_param(boxed_tts_param.tts_param()) };
+            if code != ResultCode::SUCCESS {
+                ctx.channel
+                    .send(Err(anyhow!(
+                        "Failed to aitalked.set_param (text_to_kana) {code:?}"
+                    )))
+                    .unwrap();
 
-            continue;
+                continue;
+            }
+
+            let mut job_id = 0;
+
+            let mut kana = vec![];
+            let (tx, mut rx) = mpsc::channel(1);
+
+            let mut context = ProcTextBufContext {
+                aitalked,
+                buffer: &mut kana,
+                notify: tx.clone(),
+                len_text_buf_bytes: boxed_tts_param.tts_param().len_text_buf_bytes,
+            };
+
+            let code = unsafe {
+                aitalked.text_to_kana(
+                    &mut job_id,
+                    &mut context as *mut ProcTextBufContext as *mut std::ffi::c_void,
+                    &to_sjis_lossy(&ctx.body.text),
+                )
+            };
+            if code != ResultCode::SUCCESS {
+                ctx.channel
+                    .send(Err(anyhow!("Failed to aitalked.text_to_kana {code:?}")))
+                    .unwrap();
+
+                continue;
+            }
+
+            rx.blocking_recv().unwrap();
+
+            drop(context);
+
+            let code = unsafe { aitalked.close_kana(job_id, 0) };
+            if code != ResultCode::SUCCESS {
+                ctx.channel
+                    .send(Err(anyhow!("Failed to aitalked.close_kana {code:?}")))
+                    .unwrap();
+
+                continue;
+            }
+
+            // Avoiding aitalked.text_to_speech INVALID_ARGUMENT
+            if kana.len() > 0 {
+                // Add '\0'
+                kana.push(0);
+
+                let kana = CStr::from_bytes_with_nul(&kana).unwrap();
+
+                // unload
+                boxed_tts_param.tts_param_mut().proc_text_buf = None;
+
+                let t_kana_ready = Instant::now();
+
+                /*\
+                |*| Start Kana2Speech
+                \*/
+                boxed_tts_param.tts_param_mut().proc_raw_buf = Some(raw_buf_callback);
+                boxed_tts_param.tts_param_mut().proc_event_tts = Some(tts_event_callback);
+                let code = unsafe { aitalked.set_param(boxed_tts_param.tts_param()) };
+                if code != ResultCode::SUCCESS {
+                    ctx.channel
+                        .send(Err(anyhow!(
+                            "Failed to aitalked.set_param (kana_to_speech / set) {code:?}"
+                        )))
+                        .unwrap();
+
+                    continue;
+                }
+
+                let mut job_id = 0;
+                let (tx, mut rx) = mpsc::channel(1);
+
+                let mut buffer = vec![0; WAV_HEADER_SIZE];
+
+                let mut context = TextToSpeechContext {
+                    aitalked,
+                    buffer: &mut buffer,
+                    notify: tx.clone(),
+                    len_raw_buf_words: boxed_tts_param.tts_param().len_raw_buf_words,
+                };
+
+                let code = unsafe {
+                    aitalked.text_to_speech(
+                        &mut job_id,
+                        &mut context as *mut TextToSpeechContext as *mut std::ffi::c_void,
+                        kana,
+                    )
+                };
+                if code != ResultCode::SUCCESS {
+                    ctx.channel
+                        .send(Err(anyhow!("Failed to aitalked.text_to_speech {code:?}")))
+                        .unwrap();
+
+                    continue;
+                }
+
+                rx.blocking_recv().unwrap();
+
+                drop(context);
+
+                let code = unsafe { aitalked.close_speech(job_id, 0) };
+                if code != ResultCode::SUCCESS {
+                    ctx.channel
+                        .send(Err(anyhow!("Failed to aitalked.close_speech {code:?}")))
+                        .unwrap();
+
+                    continue;
+                }
+
+                let t_speech_ready = Instant::now();
+
+                tracing::info!(
+                    "Voice: {}, Kana: {:?}, Speech: {:?}",
+                    voice_name,
+                    t_kana_ready - t_start_at,
+                    t_speech_ready - t_kana_ready,
+                );
+
+
+                let filesize = buffer.len();
+                let bodysize = buffer.len() - WAV_HEADER_SIZE;
+                let mut file = Cursor::new(buffer);
+                file.write_all(b"RIFF").unwrap();
+                file.write_all(&(filesize as u32).to_le_bytes()).unwrap();
+                file.write_all(b"WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00")
+                    .unwrap();
+                file.write_all(&44100u32.to_le_bytes()).unwrap();
+                file.write_all(&(44100u32 * 2).to_le_bytes()).unwrap();
+                file.write_all(b"\x02\x00\x10\x00data").unwrap();
+                file.write_all(&(bodysize as u32).to_le_bytes()).unwrap();
+
+                let buffer = file.into_inner();
+
+                ctx.channel.send(Ok(buffer)).unwrap();
+
+                continue;
+            }
         }
 
-        let mut job_id = 0;
-
-        let mut kana = vec![];
-        let (tx, mut rx) = mpsc::channel(1);
-
-        let mut context = ProcTextBufContext {
-            aitalked,
-            buffer: &mut kana,
-            notify: tx.clone(),
-            len_text_buf_bytes: boxed_tts_param.tts_param().len_text_buf_bytes,
-        };
-
-        let code = unsafe {
-            aitalked.text_to_kana(
-                &mut job_id,
-                &mut context as *mut ProcTextBufContext as *mut std::ffi::c_void,
-                &to_sjis_lossy(&ctx.body.text),
-            )
-        };
-        if code != ResultCode::SUCCESS {
-            ctx.channel
-                .send(Err(anyhow!("Failed to aitalked.text_to_kana {code:?}")))
-                .unwrap();
-
-            continue;
-        }
-
-        rx.blocking_recv().unwrap();
-
-        drop(context);
-
-        let code = unsafe { aitalked.close_kana(job_id, 0) };
-        if code != ResultCode::SUCCESS {
-            ctx.channel
-                .send(Err(anyhow!("Failed to aitalked.close_kana {code:?}")))
-                .unwrap();
-
-            continue;
-        }
-
-        // Add '\0'
-        kana.push(0);
-
-        let kana = CStr::from_bytes_with_nul(&kana).unwrap();
-
-        // unload
-        boxed_tts_param.tts_param_mut().proc_text_buf = None;
-
-        let t_kana_ready = Instant::now();
-
-        /*\
-        |*| Start Kana2Speech
-        \*/
-        boxed_tts_param.tts_param_mut().proc_raw_buf = Some(raw_buf_callback);
-        boxed_tts_param.tts_param_mut().proc_event_tts = Some(tts_event_callback);
-        let code = unsafe { aitalked.set_param(boxed_tts_param.tts_param()) };
-        if code != ResultCode::SUCCESS {
-            ctx.channel
-                .send(Err(anyhow!(
-                    "Failed to aitalked.set_param (kana_to_speech / set) {code:?}"
-                )))
-                .unwrap();
-
-            continue;
-        }
-
-        let mut job_id = 0;
-        let (tx, mut rx) = mpsc::channel(1);
-
-        const WAV_HEADER_SIZE: usize = 44;
-        let mut buffer = vec![0; WAV_HEADER_SIZE];
-
-        let mut context = TextToSpeechContext {
-            aitalked,
-            buffer: &mut buffer,
-            notify: tx.clone(),
-            len_raw_buf_words: boxed_tts_param.tts_param().len_raw_buf_words,
-        };
-
-        let code = unsafe {
-            aitalked.text_to_speech(
-                &mut job_id,
-                &mut context as *mut TextToSpeechContext as *mut std::ffi::c_void,
-                kana,
-            )
-        };
-        if code != ResultCode::SUCCESS {
-            ctx.channel
-                .send(Err(anyhow!("Failed to aitalked.text_to_speech {code:?}")))
-                .unwrap();
-
-            continue;
-        }
-
-        rx.blocking_recv().unwrap();
-
-        drop(context);
-
-        let code = unsafe { aitalked.close_speech(job_id, 0) };
-        if code != ResultCode::SUCCESS {
-            ctx.channel
-                .send(Err(anyhow!("Failed to aitalked.close_speech {code:?}")))
-                .unwrap();
-
-            continue;
-        }
-
-        let t_speech_ready = Instant::now();
-
-        tracing::info!(
-            "Voice: {}, Kana: {:?}, Speech: {:?}",
-            voice_name,
-            t_kana_ready - t_start_at,
-            t_speech_ready - t_kana_ready,
-        );
-
-        let filesize = buffer.len();
-        let bodysize = buffer.len() - WAV_HEADER_SIZE;
+        // return empty buffer
+        let buffer = vec![0; WAV_HEADER_SIZE];
         let mut file = Cursor::new(buffer);
+
         file.write_all(b"RIFF").unwrap();
-        file.write_all(&(filesize as u32).to_le_bytes()).unwrap();
+        file.write_all(&WAV_HEADER_SIZE.to_le_bytes()).unwrap();
         file.write_all(b"WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00")
             .unwrap();
         file.write_all(&44100u32.to_le_bytes()).unwrap();
         file.write_all(&(44100u32 * 2).to_le_bytes()).unwrap();
         file.write_all(b"\x02\x00\x10\x00data").unwrap();
-        file.write_all(&(bodysize as u32).to_le_bytes()).unwrap();
+        file.write_all(&0u32.to_le_bytes()).unwrap();
 
         let buffer = file.into_inner();
-
         ctx.channel.send(Ok(buffer)).unwrap();
     }
 }
