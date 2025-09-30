@@ -71,9 +71,7 @@ fn aes_decrypt(key: &[u8], iv: &[u8], data: &mut [u8]) -> Vec<u8> {
         .to_vec()
 }
 
-pub(in crate::voices) fn read_info<R: Read + Seek>(mut reader: R) -> Result<VoiceDicInfo> {
-    let password = b"jD5yPFM63olaOWC5fiGpLL5LJnpwTlsK";
-
+pub(in crate::voices) fn read_info<R: Read + Seek>(mut reader: R, password: &str) -> Result<VoiceDicInfo> {
     let mut salt = [0; 16];
     let mut iv = [0; 16];
 
@@ -81,7 +79,7 @@ pub(in crate::voices) fn read_info<R: Read + Seek>(mut reader: R) -> Result<Voic
     reader.read_exact(&mut iv)?;
 
     let mut key = [0u8; 16];
-    pbkdf2_hmac::<Sha1>(password, &salt, 1000, &mut key);
+    pbkdf2_hmac::<Sha1>(password.as_bytes(), &salt, 1000, &mut key);
 
     let key = GenericArray::from(key);
 

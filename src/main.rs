@@ -18,6 +18,9 @@ struct Cli {
     #[arg(long, env, default_value = "ORXJC6AIWAUKDpDbH2al")]
     auth_seed: String,
 
+    #[arg(long, env, default_value = "jD5yPFM63olaOWC5fiGpLL5LJnpwTlsK")]
+    infobin_password: String,
+
     #[clap(long, env)]
     #[clap(default_value = "0.0.0.0:3000")]
     listen: SocketAddr,
@@ -105,7 +108,7 @@ async fn main() -> Result<()> {
             let cli = cli.clone();
             move || {
                 tx_icon_result
-                    .send(voices::init(&cli.installation_dir))
+                    .send(voices::init(&cli.installation_dir, &cli.infobin_password))
                     .unwrap();
             }
         })

@@ -35,7 +35,11 @@ fn open_icon(installation_dir: &Path, voice_name: &str) -> Result<Vec<u8>> {
     images::read_icon(f).context(format!("Failed to read {voice_name}'s images.dat"))
 }
 
-fn open_info(installation_dir: &Path, voice_name: &str) -> Result<info::VoiceDicInfo> {
+fn open_info(
+    installation_dir: &Path,
+    voice_name: &str,
+    password: &str,
+) -> Result<info::VoiceDicInfo> {
     let path = installation_dir
         .join("Voice")
         .join(voice_name)
@@ -43,15 +47,15 @@ fn open_info(installation_dir: &Path, voice_name: &str) -> Result<info::VoiceDic
 
     let f = File::open(path).context(format!("Failed to open {voice_name}'s info.bin"))?;
 
-    info::read_info(f).context(format!("Failed to read {voice_name}'s info.bin"))
+    info::read_info(f, password).context(format!("Failed to read {voice_name}'s info.bin"))
 }
 
-pub fn init(installation_dir: &Path) -> Result<()> {
+pub fn init(installation_dir: &Path, infobin_password: &str) -> Result<()> {
     let voices: Result<HashMap<_, _>> = find_voice_dbs(&installation_dir.join("Voice"))
         .unwrap()
         .iter()
         .map(|name| {
-            let info = open_info(installation_dir, name)?;
+            let info = open_info(installation_dir, name, infobin_password)?;
             let icon = open_icon(installation_dir, name)?;
             Ok((name.clone(), (icon, info)))
         })
