@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
+use std::io::Read;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -25,6 +26,22 @@ fn find_voice_dbs(dir_voice_dbs: &Path) -> Result<Vec<String>> {
 }
 
 fn open_icon(installation_dir: &Path, voice_name: &str) -> Result<Vec<u8>> {
+    let path = installation_dir
+        .join("Voice")
+        .join(voice_name)
+        .join("images");
+
+    if path.is_dir() {
+        let mut f = File::open(&path.join("icon.png"))
+            .context(format!("Failed to open {voice_name}'s icon.png"))?;
+
+        let mut data = vec![];
+        f.read_to_end(&mut data)
+            .context(format!("Failed to read {voice_name}'s icon.png"))?;
+
+        return Ok(data);
+    }
+
     let path = installation_dir
         .join("Voice")
         .join(voice_name)
