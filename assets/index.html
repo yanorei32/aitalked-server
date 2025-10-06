@@ -24,17 +24,20 @@
 			height: 48px;
 			display: inline-block;
 		}
+		#character_selection {
+			margin: 5px 0;
+		}
 	</style>
 </head>
 <body>
 	<div class=container>
 		<h1>Aitalked Server</h1>
 
-		<p id=character_selection>
+		<div id=character_selection>
 			<div id=character_color></div><img id=character_icon width=48 height=48>
 			<select id=character_selector></select>
 			(<span id=character_count>0</span> characters available.)
-		</p>
+		</div>
 		<table>
 			<tr>
 				<td><label for=is_kansai>IsKansai?</label></td>
