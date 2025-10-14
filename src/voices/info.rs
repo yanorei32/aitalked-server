@@ -71,7 +71,10 @@ fn aes_decrypt(key: &[u8], iv: &[u8], data: &mut [u8]) -> Vec<u8> {
         .to_vec()
 }
 
-pub(in crate::voices) fn read_info<R: Read + Seek>(mut reader: R, password: &str) -> Result<VoiceDicInfo> {
+pub(in crate::voices) fn read_info<R: Read + Seek>(
+    mut reader: R,
+    password: &str,
+) -> Result<VoiceDicInfo> {
     let mut salt = [0; 16];
     let mut iv = [0; 16];
 

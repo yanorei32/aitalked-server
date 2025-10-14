@@ -32,7 +32,7 @@ fn open_icon(installation_dir: &Path, voice_name: &str) -> Result<Vec<u8>> {
         .join("images");
 
     if path.is_dir() {
-        let mut f = File::open(&path.join("icon.png"))
+        let mut f = File::open(path.join("icon.png"))
             .context(format!("Failed to open {voice_name}'s icon.png"))?;
 
         let mut data = vec![];

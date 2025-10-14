@@ -5,8 +5,8 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use tokio::sync::{mpsc, oneshot};
 
-mod voices;
 mod model;
+mod voices;
 mod web;
 mod worker;
 

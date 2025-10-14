@@ -264,11 +264,11 @@ fn to_nonempty_sjis_lossy(input: &str) -> Option<CString> {
         })
         .collect::<String>();
 
-    if sjisable_s.trim().len() > 0 {
+    if sjisable_s.trim().is_empty() {
+        None
+    } else {
         let sjis = SHIFT_JIS.encode(&sjisable_s).0;
         Some(CString::new(sjis).unwrap())
-    } else {
-        None
     }
 }
 
@@ -374,7 +374,7 @@ pub fn event_loop(
             }
 
             // Avoiding aitalked.text_to_speech INVALID_ARGUMENT
-            if kana.len() > 0 {
+            if !kana.is_empty() {
                 // Add '\0'
                 kana.push(0);
 
@@ -449,7 +449,6 @@ pub fn event_loop(
                     t_kana_ready - t_start_at,
                     t_speech_ready - t_kana_ready,
                 );
-
 
                 let filesize = buffer.len();
                 let bodysize = buffer.len() - WAV_HEADER_SIZE;
