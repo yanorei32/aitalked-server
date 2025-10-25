@@ -21,6 +21,7 @@ jobs:
       - uses: actions-rs/toolchain@v1.0.7
         with:
           toolchain: stable
+          target: i686-pc-windows-gnu
           components: clippy
           override: true
 
