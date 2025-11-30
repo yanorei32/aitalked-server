@@ -139,21 +139,21 @@
 				update_values();
 			});
 
-			volume.addEventListener("change", update_values);
-			speed.addEventListener("change", update_values);
-			pitch.addEventListener("change", update_values);
-			range.addEventListener("change", update_values);
-			pause_middle.addEventListener("change", () => {
+			volume.addEventListener("input", update_values);
+			speed.addEventListener("input", update_values);
+			pitch.addEventListener("input", update_values);
+			range.addEventListener("input", update_values);
+			pause_middle.addEventListener("input", () => {
 				pause_long.value = Math.max(pause_long.value, pause_middle.value);
 				pause_sentence.value = Math.max(pause_sentence.value, pause_middle.value);
 				update_values();
 			});
-			pause_long.addEventListener("change", () => {
+			pause_long.addEventListener("input", () => {
 				pause_middle.value = Math.min(pause_middle.value, pause_long.value);
 				pause_sentence.value = Math.max(pause_sentence.value, pause_long.value);
 				update_values();
 			});
-			pause_sentence.addEventListener("change", () => {
+			pause_sentence.addEventListener("input", () => {
 				pause_middle.value = Math.min(pause_middle.value, pause_sentence.value);
 				pause_long.value = Math.min(pause_long.value, pause_sentence.value);
 				update_values();
