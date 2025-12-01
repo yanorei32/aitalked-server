@@ -3,6 +3,7 @@ name: Review
 on:
   pull_request:
     paths:
+      - 'rust-toolchain'
       - 'src/**'
       - 'Cargo.toml'
       - 'Cargo.lock'
