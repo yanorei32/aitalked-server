@@ -1,9 +1,9 @@
 use std::io::{Cursor, Read, Seek};
 
 use aes::Aes128;
-use aes::cipher::{block_padding::Pkcs7, generic_array::GenericArray};
 use cbc::Decryptor;
-use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+use cbc::cipher::{BlockModeDecrypt, KeyIvInit};
+use cipher::block_padding::Pkcs7;
 use flate2::read::ZlibDecoder;
 use pbkdf2::pbkdf2_hmac;
 use sha1::Sha1;
@@ -66,7 +66,7 @@ fn aes_decrypt(key: &[u8], iv: &[u8], data: &mut [u8]) -> Vec<u8> {
     let decryptor = Decryptor::<Aes128>::new_from_slices(key, iv).expect("invalid key/iv length");
 
     decryptor
-        .decrypt_padded_mut::<Pkcs7>(data)
+        .decrypt_padded::<Pkcs7>(data)
         .expect("decryption error")
         .to_vec()
 }
@@ -83,8 +83,6 @@ pub(in crate::voices) fn read_info<R: Read + Seek>(
 
     let mut key = [0u8; 16];
     pbkdf2_hmac::<Sha1>(password.as_bytes(), &salt, 1000, &mut key);
-
-    let key = GenericArray::from(key);
 
     let mut body = vec![];
 
