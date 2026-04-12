@@ -23,5 +23,5 @@ aes = "0.9.0"
 cbc = "0.2.0"
 flate2 = { version = "1.1.2", features = ["any_zlib", "zlib"] }
 pbkdf2 = "0.12.2"
-sha1 = "0.10.6"
+sha1 = "0.11.0"
 cipher = { version = "0.5.1", features = ["block-padding"] }
