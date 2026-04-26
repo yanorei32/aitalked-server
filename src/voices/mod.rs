@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -9,9 +9,9 @@ use once_cell::sync::OnceCell;
 pub mod images;
 pub mod info;
 
-static VOICES: OnceCell<HashMap<String, (Vec<u8>, info::VoiceDicInfo)>> = OnceCell::new();
+static VOICES: OnceCell<BTreeMap<String, (Vec<u8>, info::VoiceDicInfo)>> = OnceCell::new();
 
-pub fn get() -> &'static HashMap<String, (Vec<u8>, info::VoiceDicInfo)> {
+pub fn get() -> &'static BTreeMap<String, (Vec<u8>, info::VoiceDicInfo)> {
     VOICES.get().unwrap()
 }
 
@@ -68,7 +68,7 @@ fn open_info(
 }
 
 pub fn init(installation_dir: &Path, infobin_password: &str) -> Result<()> {
-    let voices: Result<HashMap<_, _>> = find_voice_dbs(&installation_dir.join("Voice"))
+    let voices: Result<BTreeMap<_, _>> = find_voice_dbs(&installation_dir.join("Voice"))
         .unwrap()
         .iter()
         .map(|name| {
