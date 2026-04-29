@@ -22,7 +22,7 @@ dependencies = [
 [[package]]
 name = "aitalked"
 version = "0.1.0"
-source = "git+https://github.com/yanorei32/aitalked?rev=b67673edafe5c40cfc5cae7e9bc63f97a4166c9d#b67673edafe5c40cfc5cae7e9bc63f97a4166c9d"
+source = "git+https://github.com/yanorei32/aitalked?rev=c633ef4f9c3b9a60827ca895e242f9bafd8d718a#c633ef4f9c3b9a60827ca895e242f9bafd8d718a"
 dependencies = [
  "bitflags",
  "derivative",
@@ -799,9 +799,9 @@ checksum = "52ff2c0fe9bc6cb6b14a0592c2ff4fa9ceb83eea9db979b0487cd054946a2b8f"
 
 [[package]]
 name = "libloading"
-version = "0.8.9"
+version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
 dependencies = [
  "cfg-if",
  "windows-link",
