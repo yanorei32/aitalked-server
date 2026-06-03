@@ -22,7 +22,7 @@ dependencies = [
 [[package]]
 name = "aitalked"
 version = "0.1.0"
-source = "git+https://github.com/yanorei32/aitalked?rev=55d5cd453cf8d3301df1a82af4c24d78d3bcc11d#55d5cd453cf8d3301df1a82af4c24d78d3bcc11d"
+source = "git+https://github.com/yanorei32/aitalked?rev=56b95518ef7f00e98a1a09ed419952a983122ae9#56b95518ef7f00e98a1a09ed419952a983122ae9"
 dependencies = [
  "bitflags",
  "derivative",
