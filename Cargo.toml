@@ -9,7 +9,7 @@ clap = { version = "4.5.48", features = ["derive", "env"] }
 serde = { version = "1.0.226", features = ["derive"] }
 serde_json = "1.0.145"
 tokio = { version = "1.47.1", features = ["macros", "net", "rt", "time"] }
-aitalked = { git = "https://github.com/yanorei32/aitalked", rev = "c376fce92e2b97bf02311966d344f6c2e33a44a3" }
+aitalked = { git = "https://github.com/yanorei32/aitalked", rev = "a36979a0dd304298cbee82beaa2169359391ded0" }
 encoding_rs = "0.8.35"
 anyhow = "1.0.100"
 directories = "6.0.0"
