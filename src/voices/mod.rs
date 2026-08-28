@@ -78,9 +78,9 @@ pub fn init(installation_dir: &Path, infobin_password: &str) -> Result<()> {
         })
         .collect();
 
-    let vocies = voices?;
+    let voices = voices?;
 
-    VOICES.get_or_init(|| vocies);
+    VOICES.get_or_init(|| voices);
     tracing::info!("Voices Ready");
 
     Ok(())
