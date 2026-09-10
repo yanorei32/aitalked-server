@@ -10,6 +10,7 @@ on:
 env:
   CARGO_INCREMENTAL: 0
   RUST_CACHE_VERSION: v1
+  REGISTRY_IMAGE: ghcr.io/yanorei32/aitalked-server
   PROJ_NAME: aitalked-server
 
 jobs:
@@ -200,7 +201,7 @@ jobs:
         id: build
         with:
           context: .
-          platforms: ${{ matrix.dockerimage }}
+          platforms: ${{ matrix.dockerarch }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: ${{ steps.meta.outputs.tags }}
