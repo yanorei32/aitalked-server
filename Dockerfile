@@ -38,6 +38,10 @@ RUN dpkg --add-architecture i386 \
 	&& apt-get install -qq -y --no-install-recommends wine wine32 \
 	&& rm -rf /var/lib/apt/lists/*
 
+ENV WINEDEBUG=-all
+ENV XDG_RUNTIME_DIR=/tmp/runtime-root
+RUN mkdir -p /tmp/runtime-root && chmod 0700 /tmp/runtime-root
+
 COPY --chown=root:root --from=build-env \
 	/usr/src/aitalked-server/CREDITS \
 	/usr/src/aitalked-server/LICENSE \
