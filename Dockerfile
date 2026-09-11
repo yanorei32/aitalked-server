@@ -26,8 +26,10 @@ RUN	cargo install cargo-license && cargo license \
 	> CREDITS
 
 RUN cargo build --release --target i686-pc-windows-gnu
-COPY ./src ./assets /usr/src/aitalked-server/
-RUN cargo build --release --target i686-pc-windows-gnu
+COPY ./src ./src
+COPY ./assets ./assets
+RUN touch src/**/*.rs src/*.rs assets/* \
+	&& cargo build --release --target i686-pc-windows-gnu
 
 FROM debian:trixie-slim
 
